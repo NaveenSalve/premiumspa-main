@@ -1,0 +1,13 @@
+node_modules/
+build/
+dist/
+dist-functions/
+dist-server/
+coverage/
+backups/
+.DS_Store
+*.log
+.env*
+!.env.example
+.vercel/
+.netlify/
