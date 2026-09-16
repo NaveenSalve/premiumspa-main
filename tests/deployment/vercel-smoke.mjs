@@ -53,7 +53,19 @@ try {
       const missing = await fetch(base + '/api/nonexistent-smoke-test');
       assert.equal(missing.status, 404);
       assert.ok((await missing.json()).error);
-      console.log('PASS: isolated Vercel bundle boots, concurrent health requests, auth guard and JSON 404');
+      const sameOriginPost = await fetch(base + '/api/auth/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: 'https://premiumspa-main.vercel.app' },
+        body: '{}',
+      });
+      assert.equal(sameOriginPost.status, 400);
+      const evilOriginPost = await fetch(base + '/api/auth/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', origin: 'https://evil.example' },
+        body: '{}',
+      });
+      assert.equal(evilOriginPost.status, 403);
+      console.log('PASS: isolated Vercel bundle boots, concurrent health requests, auth guard, origin allowlist and JSON 404');
     } finally {
       server.closeAllConnections();
       await new Promise(resolve => server.close(resolve));
@@ -72,6 +84,7 @@ try {
       JWT_SECRET: 'isolated-smoke-test-only-not-a-production-secret',
       ADMIN_PIN: 'Isolated-Test-Only-123!',
       APP_ORIGIN: 'https://example.invalid',
+      VERCEL_PROJECT_PRODUCTION_URL: 'premiumspa-main.vercel.app',
       SUPABASE_URL: '',
       SUPABASE_SERVICE_ROLE_KEY: '',
       SUPABASE_ANON_KEY: '',

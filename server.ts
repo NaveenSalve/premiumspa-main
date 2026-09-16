@@ -70,6 +70,28 @@ function parseTrustProxySetting(): boolean | number | string[] {
   return v.split(',').map((s) => s.trim()).filter(Boolean);
 }
 
+function normalizeAllowedOrigin(value: string): string | null {
+  const raw = value.trim().replace(/\/+$/, '');
+  if (!raw) return null;
+  const candidate = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const url = new URL(candidate);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+function getAllowedOrigins(): string[] {
+  const values = [
+    ...(process.env.APP_ORIGIN || '').split(/[,\s]+/),
+    process.env.VERCEL_PROJECT_PRODUCTION_URL || '',
+    process.env.VERCEL_URL || '',
+  ];
+  return Array.from(new Set(values.map(normalizeAllowedOrigin).filter((value): value is string => Boolean(value))));
+}
+
 // ---- Strong ADMIN_PIN (production) ----
 // A weak PIN is the brute-force key (see F-01). Refuse production startup with
 // a generic error; never log the actual PIN or its length.
@@ -433,17 +455,16 @@ export async function createApp() {
   // JS can never read responses or attach cookies (SameSite=Lax remains the
   // cookie-level control). Unset APP_ORIGIN in production = fail-closed: every
   // browser state-changing request is rejected until an origin is configured.
-  const allowedOrigins = (process.env.APP_ORIGIN || '')
-    .split(/[,\s]+/)
-    .map((s) => s.trim().replace(/\/+$/, ''))
-    .filter(Boolean);
+  // Vercel exposes its production/custom URL at runtime, so include it as an
+  // exact origin source in case APP_ORIGIN is missing from the project env.
+  const allowedOrigins = getAllowedOrigins();
 
   app.use((req, res, next) => {
     if (process.env.NODE_ENV === 'production') {
       const origin = (req.headers.origin || '').toString().trim();
       if (origin) {
-        const normalized = origin.replace(/\/+$/, '');
-        const allowed = allowedOrigins.length > 0 && allowedOrigins.includes(normalized);
+        const normalized = normalizeAllowedOrigin(origin);
+        const allowed = Boolean(normalized) && allowedOrigins.length > 0 && allowedOrigins.includes(normalized);
         if (!allowed) {
           if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(req.method)) {
             return res.status(403).json({ error: 'Origin not allowed.' });
