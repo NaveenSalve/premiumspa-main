@@ -29,6 +29,7 @@ import {
 } from './src/data/mockData.ts';
 import { uploadAndProcessImage, deleteImageAsset, deleteImagesByEntity, getImageAssetsByEntity } from './src/lib/image-service.ts';
 import { supabase } from './src/lib/supabase.ts';
+import { restoreUploadedTherapistPhotos } from './src/lib/restore-uploaded-photos.ts';
 import sharp from 'sharp';
 
 dotenv.config();
@@ -129,12 +130,9 @@ const jsonByteLength = (value: unknown): number => Buffer.byteLength(JSON.string
 
 const publicImageOrFallback = (value: unknown, fallback: string): string => {
   if (typeof value !== 'string' || !value.trim()) return fallback;
-  const url = value.trim();
-  if (!url.startsWith('/uploads/')) return url;
-  const localPath = path.resolve(process.cwd(), 'public', url.replace(/^\/+/, ''));
-  const uploadsRoot = path.resolve(process.cwd(), 'public', 'uploads');
-  if (!localPath.startsWith(uploadsRoot) || !fs.existsSync(localPath)) return fallback;
-  return url;
+  // Vercel serves static uploads separately from the function filesystem.
+  // Absence on local disk does not mean the stored public URL is missing.
+  return value.trim();
 };
 
 const durationMultiplier = (duration: unknown): number => {
@@ -1019,6 +1017,10 @@ export async function createApp() {
   app.get('/api/therapists', async (req, res) => {
     try {
       res.setHeader('Cache-Control', 'no-store');
+      await restoreUploadedTherapistPhotos().catch(error => {
+        // A repair failure must not hide the existing public catalog.
+        console.error('[images] Uploaded-photo recovery failed:', error.message);
+      });
       const page = pageArgs(req);
       const allTherapists = await db
         .select()

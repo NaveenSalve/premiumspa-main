@@ -362,10 +362,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const [experienceTherapistInput, setExperienceTherapistInput] = useState(contactSettings.experienceTherapistImageUrl || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=800&q=80');
   const [settingsSavedToast, setSettingsSavedToast] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
+  const [isUploadingSettingsImage, setIsUploadingSettingsImage] = useState(false);
+  const settingsDraftDirty = React.useRef(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
 
   React.useEffect(() => {
-    if (settingsSaving) return;
+    // Catalog polling must not replace an unsaved URL (including a completed
+    // upload) with the previously persisted image.
+    if (settingsSaving || settingsDraftDirty.current) return;
     setWaNumberInput(contactSettings.whatsappNumber || '');
     setCallNumberInput(contactSettings.callNumber || '');
     setContactEmailInput(contactSettings.contactEmail || 'premiumspaindore@gmail.com');
@@ -427,20 +431,26 @@ export const AdminView: React.FC<AdminViewProps> = ({
       return;
     }
     
-    // Show loading state
-    setter('uploading...');
-    
-    const url = await uploadImage(file, 'site_setting', 'site-settings', entityField, imageType);
-    if (url) {
-      setter(url);
-    } else {
-      setter(''); // Reset on failure
+    if (isUploadingSettingsImage || settingsSaving) return;
+    settingsDraftDirty.current = true;
+    setIsUploadingSettingsImage(true);
+    setSettingsError(null);
+    try {
+      const url = await uploadImage(file, 'site_setting', 'site-settings', entityField, imageType);
+      if (url) {
+        setter(url);
+      } else {
+        // Keep the previous image; an upload failure must never save a default.
+        setSettingsError('Image upload failed. Your previous image is unchanged. Please retry.');
+      }
+    } finally {
+      setIsUploadingSettingsImage(false);
     }
   };
 
   const handleSaveContactSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (settingsSaving) return;
+    if (settingsSaving || isUploadingSettingsImage) return;
     setSettingsSaving(true);
     setSettingsError(null);
     try {
@@ -461,6 +471,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       if (result) {
         setSettingsError(result);
       } else {
+        settingsDraftDirty.current = false;
         setSettingsSavedToast(true);
         setTimeout(() => setSettingsSavedToast(false), 3000);
       }
@@ -2371,7 +2382,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
           )}
 
-          <form onSubmit={handleSaveContactSettings} className="bg-white rounded-2xl p-5 border border-[#e9e8e3] shadow-xs space-y-4">
+          <form onSubmit={handleSaveContactSettings} onChangeCapture={() => { settingsDraftDirty.current = true; }} className="bg-white rounded-2xl p-5 border border-[#e9e8e3] shadow-xs space-y-4">
+            <fieldset disabled={settingsSaving || isUploadingSettingsImage} className="contents">
             <div>
               <label className="text-xs font-semibold text-[#1b1c19] flex items-center space-x-1.5 mb-1">
                 <MessageCircle className="w-4 h-4 text-[#16B543]" />
@@ -2608,13 +2620,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
             <div className="pt-2 border-t border-[#efeee8] flex justify-end">
               <button
                 type="submit"
-                disabled={settingsSaving}
+                disabled={settingsSaving || isUploadingSettingsImage}
                 className="px-6 py-2.5 bg-[#52634f] hover:bg-[#3b4b38] disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-full shadow-xs transition-colors flex items-center space-x-2 cursor-pointer"
               >
                 {settingsSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                <span>{settingsSaving ? 'Saving...' : 'Save Contact Settings'}</span>
+                <span>{isUploadingSettingsImage ? 'Uploading image...' : settingsSaving ? 'Saving...' : 'Save Contact Settings'}</span>
               </button>
             </div>
+            </fieldset>
           </form>
         </div>
       )}

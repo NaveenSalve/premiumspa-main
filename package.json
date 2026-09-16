@@ -17,6 +17,8 @@
     "test:vercel": "node tests/deployment/vercel-smoke.mjs",
     "test:images": "node tests/browser/responsive-images.cjs",
     "test:catalog": "node tests/browser/catalog-resilience.cjs",
+    "test:admin-images": "node tests/browser/admin-image-save.cjs",
+    "test:photo-recovery": "node tests/deployment/photo-recovery.cjs",
     "audit:public": "node tests/browser/public-site-audit.cjs",
     "lint": "node node_modules/typescript/bin/tsc --noEmit"
   },
@@ -47,6 +49,7 @@
     "vite": "^6.2.3"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.6",
     "@types/node": "^22.14.0",
