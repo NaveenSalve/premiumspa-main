@@ -12,9 +12,15 @@ await build({
 });
 
 // Vercel runs an ESM entrypoint. Bundle all local TypeScript imports into one
-// JavaScript artifact and disable the standalone listener for this target.
+// JavaScript artifact. Export only the API factory so the standalone server
+// and its development tooling can be omitted from the serverless bundle.
 await build({
-  entryPoints: ['server.ts'],
+  stdin: {
+    contents: "export { createApp } from './server.ts';",
+    resolveDir: process.cwd(),
+    sourcefile: 'vercel-entry.ts',
+    loader: 'ts',
+  },
   bundle: true,
   platform: 'node',
   target: 'node22',

@@ -7,6 +7,16 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const sandbox = mkdtempSync(path.join(tmpdir(), 'spa-vercel-smoke-'));
+const buildToolBlocker = 'data:text/javascript,' + encodeURIComponent(`
+  export async function resolve(specifier, context, nextResolve) {
+    if (specifier === 'vite' || specifier.startsWith('vite/') ||
+        specifier === 'rollup' || specifier.startsWith('rollup/') ||
+        specifier.startsWith('@rollup/')) {
+      throw new Error('Production API must not load build tooling: ' + specifier);
+    }
+    return nextResolve(specifier, context);
+  }
+`);
 try {
   // Reproduce the function filesystem without server.ts, src/, .env or a TS loader.
   mkdirSync(path.join(sandbox, 'api'));
@@ -18,6 +28,9 @@ try {
   const result = spawnSync(process.execPath, ['--input-type=module', '-e', `
     import assert from 'node:assert/strict';
     import { createServer } from 'node:http';
+    import { register } from 'node:module';
+    // Production must boot even when the platform omits dev build tooling.
+    register(${JSON.stringify(buildToolBlocker)});
     const { default: handler } = await import('./api/[...path].js');
     const server = createServer((req, res) => {
       Promise.resolve(handler(req, res)).catch((error) => {

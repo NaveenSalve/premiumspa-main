@@ -5,7 +5,6 @@ import crypto from 'crypto';
 import cookieParser from 'cookie-parser';
 import multer from 'multer';
 import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
-import { createServer as createViteServer } from 'vite';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
@@ -1874,6 +1873,9 @@ export async function startServer() {
     fs.existsSync(path.join(process.cwd(), 'dist', 'index.html'));
 
   if (!isProduction) {
+    // Vite/Rollup are development tools; never load their native dependencies
+    // when importing the production API (including serverless cold starts).
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
