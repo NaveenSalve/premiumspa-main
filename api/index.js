@@ -1,3 +1,4 @@
+// vercel.json routes every /api/* path (including nested paths) here.
 // Import the bundled JavaScript, never TypeScript source files at runtime.
 import { createApp } from '../dist-server/vercel.mjs';
 

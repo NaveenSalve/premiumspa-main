@@ -3,9 +3,12 @@
   "outputDirectory": "dist",
   "installCommand": "npm install",
   "functions": {
-    "api/[...path].js": {
+    "api/index.js": {
       "maxDuration": 30,
       "includeFiles": "dist-server/vercel.mjs"
     }
-  }
+  },
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api" }
+  ]
 }

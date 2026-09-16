@@ -21,7 +21,7 @@ try {
   // Reproduce the function filesystem without server.ts, src/, .env or a TS loader.
   mkdirSync(path.join(sandbox, 'api'));
   mkdirSync(path.join(sandbox, 'dist-server'));
-  for (const file of ['package.json', 'api/[...path].js', 'dist-server/vercel.mjs']) {
+  for (const file of ['package.json', 'api/index.js', 'dist-server/vercel.mjs']) {
     cpSync(path.join(root, file), path.join(sandbox, file));
   }
   symlinkSync(path.join(root, 'node_modules'), path.join(sandbox, 'node_modules'), 'junction');
@@ -31,7 +31,7 @@ try {
     import { register } from 'node:module';
     // Production must boot even when the platform omits dev build tooling.
     register(${JSON.stringify(buildToolBlocker)});
-    const { default: handler } = await import('./api/[...path].js');
+    const { default: handler } = await import('./api/index.js');
     const server = createServer((req, res) => {
       Promise.resolve(handler(req, res)).catch((error) => {
         console.error(error);
