@@ -15,6 +15,7 @@
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "test:security": "node tests/security/run-all.cjs",
     "test:vercel": "node tests/deployment/vercel-smoke.mjs",
+    "test:images": "node tests/browser/responsive-images.cjs",
     "lint": "node node_modules/typescript/bin/tsc --noEmit"
   },
   "dependencies": {
@@ -49,6 +50,7 @@
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
     "drizzle-kit": "^0.31.10",
+    "playwright-core": "^1.63.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.23.11",
     "typescript": "~5.9.3",

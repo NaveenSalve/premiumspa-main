@@ -14,51 +14,13 @@ interface ResponsiveImageProps {
   onError?: () => void;
 }
 
-interface ImageVariant {
-  url: string;
-  width: number;
-  height: number;
-  format: 'webp' | 'avif';
-}
+// A newly selected URL must get a fresh load/error state, including after
+// settings arrive asynchronously or an admin replaces a broken image.
+export const ResponsiveImage: React.FC<ResponsiveImageProps> = (props) => (
+  <ResponsiveImageContent key={props.src} {...props} />
+);
 
-function generateSrcSet(variants: ImageVariant[]): string {
-  return variants
-    .filter(v => v.url)
-    .map(v => `${v.url} ${v.width}w`)
-    .join(', ');
-}
-
-function getVariantUrls(src: string, width: number, height: number): ImageVariant[] {
-  if (!src) return [];
-  
-  const baseUrl = src.split('?')[0];
-  const isSupabaseUrl = baseUrl.includes('supabase.co') || baseUrl.includes('supabase.in');
-  
-  if (!isSupabaseUrl) {
-    return [{ url: src, width, height, format: 'webp' }];
-  }
-  
-  const ext = baseUrl.split('.').pop() || 'webp';
-  const basePath = baseUrl.replace(/\.[^.]+$/, '');
-  
-  const variants: ImageVariant[] = [];
-  
-  const sizes = [150, 400, 800, 1200];
-  for (const size of sizes) {
-    if (size <= width * 1.5) {
-      variants.push(
-        { url: `${basePath}-${size}w.webp`, width: size, height: Math.round(size * height / width), format: 'webp' },
-        { url: `${basePath}-${size}w.avif`, width: size, height: Math.round(size * height / width), format: 'avif' }
-      );
-    }
-  }
-  
-  variants.push({ url: src, width, height, format: 'webp' });
-  
-  return variants;
-}
-
-export const ResponsiveImage: React.FC<ResponsiveImageProps> = ({
+const ResponsiveImageContent: React.FC<ResponsiveImageProps> = ({
   src,
   alt,
   width = 800,
@@ -75,10 +37,6 @@ export const ResponsiveImage: React.FC<ResponsiveImageProps> = ({
   const [hasError, setHasError] = React.useState(false);
   const [showPlaceholder, setShowPlaceholder] = React.useState(!!placeholder && !priority);
   
-  const variants = React.useMemo(() => getVariantUrls(src, width, height), [src, width, height]);
-  const webpVariants = variants.filter(v => v.format === 'webp');
-  const avifVariants = variants.filter(v => v.format === 'avif');
-  
   const handleLoad = () => {
     setIsLoaded(true);
     setShowPlaceholder(false);
@@ -93,13 +51,7 @@ export const ResponsiveImage: React.FC<ResponsiveImageProps> = ({
   
   if (hasError && placeholder) {
     return (
-      <div className={className} style={{ width, height, backgroundColor: '#f0f0f0' }}>
-        <img
-          src={placeholder}
-          alt=""
-          className="w-full h-full object-cover opacity-50"
-        />
-      </div>
+      <img src={placeholder} alt={alt} width={width} height={height} className={className} />
     );
   }
 
@@ -116,20 +68,8 @@ export const ResponsiveImage: React.FC<ResponsiveImageProps> = ({
   
   return (
     <picture>
-      {avifVariants.length > 0 && (
-        <source
-          type="image/avif"
-          srcSet={generateSrcSet(avifVariants)}
-          sizes={sizes}
-        />
-      )}
-      {webpVariants.length > 0 && (
-        <source
-          type="image/webp"
-          srcSet={generateSrcSet(webpVariants)}
-          sizes={sizes}
-        />
-      )}
+      {/* The API supplies an existing image URL. Storage variant paths have
+          independent names/hashes and cannot be inferred from that URL. */}
       <img
         src={src}
         alt={alt}
