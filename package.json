@@ -14,6 +14,7 @@
     "preview": "node node_modules/vite/bin/vite.js preview",
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "test:security": "node tests/security/run-all.cjs",
+    "test:vercel": "node tests/deployment/vercel-smoke.mjs",
     "lint": "node node_modules/typescript/bin/tsc --noEmit"
   },
   "dependencies": {

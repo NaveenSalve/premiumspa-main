@@ -3,8 +3,9 @@
   "outputDirectory": "dist",
   "installCommand": "npm install",
   "functions": {
-    "api/[...path].ts": {
-      "maxDuration": 30
+    "api/[...path].js": {
+      "maxDuration": 30,
+      "includeFiles": "dist-server/vercel.mjs"
     }
   }
 }

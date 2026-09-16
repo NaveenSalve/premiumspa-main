@@ -69,6 +69,19 @@ npm start         # runs the production server on PORT (default 3000)
 
 The database schema is created automatically on first boot (Drizzle migrations run at startup).
 
+## Deploy on Vercel
+
+- Framework preset: **Vite**; build command: `npm run build`; output: `dist`.
+- Set `DATABASE_URL`, `JWT_SECRET`, `ADMIN_PIN`, `APP_ORIGIN` (the site's exact
+  HTTPS origin), and `TRUST_PROXY` for the hosting proxy in the project environment.
+- The API entrypoint imports `dist-server/vercel.mjs`, produced by the build and
+  explicitly included by `vercel.json`. Do not import `server.ts` from that
+  entrypoint: the deployed function must run without TypeScript source files.
+- Use an initialized PostgreSQL database. The Vercel handler calls `createApp()`;
+  the migrations and seeding in standalone `startServer()` do not run on Vercel.
+- Verify packaging locally with `npm run build && npm run test:vercel`, then
+  check `/api/health`, `/api/services`, and `/api/therapists` on the deployed site.
+
 ## Admin Panel
 
 - Visit `/#admin` or the Admin link in the app
