@@ -364,7 +364,7 @@ export const BookingView: React.FC<BookingViewProps> = ({
           >
             <div className="flex items-center space-x-3">
               <div className="w-12 h-12 rounded-xl overflow-hidden bg-white border border-[#c4c8bf] flex-shrink-0">
-                <img src={activeService.imageUrl} alt={activeService.name} className="w-full h-full object-cover" />
+                <CardImage src={activeService.imageUrl} alt={activeService.name} className="w-full h-full object-cover" />
               </div>
               <div>
                 <div className="flex items-center space-x-2">
@@ -409,7 +409,7 @@ export const BookingView: React.FC<BookingViewProps> = ({
                       }`}
                     >
                       <div className="w-12 h-12 rounded-xl overflow-hidden bg-[#efeee8] border border-[#e9e8e3] flex-shrink-0">
-                        <img src={s.imageUrl} alt={s.name} className="w-full h-full object-cover" />
+                        <CardImage src={s.imageUrl} alt={s.name} className="w-full h-full object-cover" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">

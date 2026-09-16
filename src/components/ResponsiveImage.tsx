@@ -36,6 +36,22 @@ const ResponsiveImageContent: React.FC<ResponsiveImageProps> = ({
   const [isLoaded, setIsLoaded] = React.useState(false);
   const [hasError, setHasError] = React.useState(false);
   const [showPlaceholder, setShowPlaceholder] = React.useState(!!placeholder && !priority);
+  const [attempt, setAttempt] = React.useState(0);
+  const retryTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(() => () => {
+    if (retryTimer.current) clearTimeout(retryTimer.current);
+  }, []);
+
+  React.useEffect(() => {
+    const retryAfterReconnect = () => {
+      if (!hasError) return;
+      setHasError(false);
+      setAttempt(0);
+    };
+    window.addEventListener('online', retryAfterReconnect);
+    return () => window.removeEventListener('online', retryAfterReconnect);
+  }, [hasError]);
   
   const handleLoad = () => {
     setIsLoaded(true);
@@ -44,6 +60,13 @@ const ResponsiveImageContent: React.FC<ResponsiveImageProps> = ({
   };
   
   const handleError = () => {
+    // Retry transient CDN/network failures twice. Keep the exact URL intact
+    // because query strings may contain signed storage access parameters.
+    if (attempt < 2) {
+      if (retryTimer.current) clearTimeout(retryTimer.current);
+      retryTimer.current = setTimeout(() => setAttempt(current => current + 1), 400 * (attempt + 1));
+      return;
+    }
     setHasError(true);
     setShowPlaceholder(false);
     onError?.();
@@ -71,6 +94,7 @@ const ResponsiveImageContent: React.FC<ResponsiveImageProps> = ({
       {/* The API supplies an existing image URL. Storage variant paths have
           independent names/hashes and cannot be inferred from that URL. */}
       <img
+        key={attempt}
         src={src}
         alt={alt}
         width={width}

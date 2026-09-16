@@ -40,7 +40,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
     instagramUrl: 'https://instagram.com',
     googleReviewUrl: 'https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4',
     brandName: 'Premium Spa',
-    brandLogoUrl: 'https://placehold.co/300x180/F9F5EC/C5A059?text=LOGO',
+    brandLogoUrl: '/uploads/PremiumSpalogo.jpg',
     heroDesktopImageUrl: heroSpaImage,
     heroLaptopImageUrl: heroSpaImage,
     experienceHomeImageUrl: 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?auto=format&fit=crop&w=800&q=80',
@@ -62,7 +62,16 @@ export const HomeView: React.FC<HomeViewProps> = ({
   const visibleServices = services.filter((s) => s.visible !== false);
   const featuredServices = visibleServices.slice(0, 6);
   const visibleTherapists = therapists.filter((t) => t.status === 'available' && t.availability !== false);
-  const heroImageDesktop = contactSettings?.heroDesktopImageUrl || heroSpaImage;
+  const [compactHero, setCompactHero] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 1279px)').matches
+  );
+  React.useEffect(() => {
+    const media = window.matchMedia('(max-width: 1279px)');
+    const update = () => setCompactHero(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  const heroImageDesktop = (compactHero && contactSettings?.heroLaptopImageUrl) || contactSettings?.heroDesktopImageUrl || heroSpaImage;
 
   React.useEffect(() => {
     window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(homeFavorites));

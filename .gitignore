@@ -11,3 +11,4 @@ backups/
 !.env.example
 .vercel/
 .netlify/
+audit-output/

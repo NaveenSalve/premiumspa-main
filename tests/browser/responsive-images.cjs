@@ -14,6 +14,7 @@ async function main() {
           const [src, setSrc] = React.useState('/missing.webp');
           return <>
             <ResponsiveImage src={${JSON.stringify(original)}} alt="Uploaded photo" loading="eager" />
+            <ResponsiveImage src="/transient.webp" alt="Retry photo" loading="eager" />
             <ResponsiveImage src={src} alt="Updated photo" loading="eager" />
             <button onClick={() => setSrc('/valid.webp')}>Update image</button>
           </>;
@@ -33,6 +34,7 @@ async function main() {
     for (const width of [375, 768, 1024, 1440]) {
       const page = await browser.newPage({ viewport: { width, height: 1000 } });
       const requested = [];
+      let transientAttempts = 0;
       await page.route('**/*', async route => {
         const url = route.request().url();
         if (url === 'http://spa.test/') {
@@ -42,7 +44,10 @@ async function main() {
           return route.fulfill({ contentType: 'text/javascript', body: result.outputFiles[0].text });
         }
         requested.push(url);
-        if (url === original || url === 'http://spa.test/valid.webp') {
+        if (url === 'http://spa.test/transient.webp' && ++transientAttempts === 1) {
+          return route.abort('connectionreset');
+        }
+        if (url === original || url === 'http://spa.test/valid.webp' || url === 'http://spa.test/transient.webp') {
           return route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="green"/></svg>' });
         }
         return route.fulfill({ status: 404, body: 'Missing image' });
@@ -52,13 +57,19 @@ async function main() {
       assert.ok(uploaded, 'Uploaded photo must use its existing URL, without guessed variants');
       assert.ok(requested.includes(original), 'Preserve the original URL including its query string');
       assert.equal(requested.some(url => /-\d+w\.(avif|webp)/.test(url)), false, 'Do not request nonexistent variants');
+      await page.waitForFunction(() => {
+        const img = document.querySelector('img[alt="Retry photo"]');
+        return img?.complete && img.naturalWidth > 0;
+      }, null, { timeout: 5000 });
+      assert.equal(transientAttempts, 2, 'Retry a failed image request without refreshing the page');
       await page.locator('[role="img"][aria-label="Updated photo"]').waitFor();
+      assert.equal(requested.filter(url => url === 'http://spa.test/missing.webp').length, 3, 'Bound retries for missing images');
       await page.getByRole('button', { name: 'Update image' }).click();
       await page.waitForFunction(() => {
         const img = document.querySelector('img[alt="Updated photo"]');
         return img?.complete && img.naturalWidth > 0 && getComputedStyle(img).opacity === '1';
-      }, { timeout: 5000 });
-      console.log(`PASS ${width}px: original photo loads and failed image recovers after src changes`);
+      }, null, { timeout: 5000 });
+      console.log(`PASS ${width}px: originals, transient recovery, bounded retries, and src updates`);
       await page.close();
     }
   } finally {

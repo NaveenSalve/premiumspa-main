@@ -16,6 +16,8 @@
     "test:security": "node tests/security/run-all.cjs",
     "test:vercel": "node tests/deployment/vercel-smoke.mjs",
     "test:images": "node tests/browser/responsive-images.cjs",
+    "test:catalog": "node tests/browser/catalog-resilience.cjs",
+    "audit:public": "node tests/browser/public-site-audit.cjs",
     "lint": "node node_modules/typescript/bin/tsc --noEmit"
   },
   "dependencies": {

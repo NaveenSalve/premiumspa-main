@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { MainTab, ContactSettings } from '../types';
 import { X, Home, CalendarCheck, User, MessageSquare } from 'lucide-react';
+import { ResponsiveImage } from './ResponsiveImage';
 
 const GoldenMonogramLogo: React.FC<{ size?: number; className?: string }> = ({
   size = 36,
@@ -77,7 +78,7 @@ export const Header: React.FC<HeaderProps> = ({
     instagramUrl: 'https://instagram.com',
     googleReviewUrl: 'https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4',
     brandName: 'Premium Spa',
-    brandLogoUrl: 'https://placehold.co/300x180/F9F5EC/C5A059?text=LOGO',
+    brandLogoUrl: '/uploads/PremiumSpalogo.jpg',
     heroDesktopImageUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=1600&q=80',
     heroLaptopImageUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=1400&q=80',
     experienceHomeImageUrl: 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?auto=format&fit=crop&w=800&q=80',
@@ -105,9 +106,12 @@ export const Header: React.FC<HeaderProps> = ({
             className="w-[33px] h-[40px] flex items-center justify-center cursor-pointer focus:outline-none hover:opacity-80 transition-opacity flex-shrink-0"
           >
             {contactSettings?.brandLogoUrl ? (
-              <img
+              <ResponsiveImage
                 src={contactSettings.brandLogoUrl}
                 alt={contactSettings.brandName || 'Premium Spa logo'}
+                width={33}
+                height={40}
+                priority
                 className="w-full h-full object-contain"
               />
             ) : (
@@ -213,7 +217,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className="flex items-center space-x-2">
                   <div className="w-7 h-7 flex items-center justify-center rounded-full bg-[#f7f0dd] overflow-hidden">
                     {contactSettings?.brandLogoUrl ? (
-                      <img src={contactSettings.brandLogoUrl} alt="Premium Spa logo" className="w-full h-full object-contain" />
+                      <ResponsiveImage src={contactSettings.brandLogoUrl} alt="Premium Spa logo" width={36} height={40} priority className="w-full h-full object-contain" />
                     ) : (
                       <GoldenMonogramLogo size={22} className="w-full h-full" />
                     )}

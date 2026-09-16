@@ -1,6 +1,7 @@
 import React from 'react';
 import { MainTab } from '../types';
 import { Lightbulb, Eye, Shield, FileText, AlertTriangle, ArrowRight } from 'lucide-react';
+import { HeroImage } from './ResponsiveImage';
 
 interface AboutViewProps {
   setActiveTab: (tab: MainTab) => void;
@@ -11,7 +12,7 @@ export const AboutView: React.FC<AboutViewProps> = ({ setActiveTab }) => {
     <div className="pb-28 animate-fade-in">
       {/* HERO SECTION */}
       <section className="relative min-h-[420px] md:min-h-[480px] rounded-b-3xl overflow-hidden shadow-md flex flex-col justify-end p-6 md:p-12 text-center text-white">
-        <img
+        <HeroImage
           src="https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=1000&q=80"
           alt="Serene Spa Environment"
           className="absolute inset-0 w-full h-full object-cover brightness-[0.55]"

@@ -47,7 +47,7 @@ const DEFAULT_CONTACT_SETTINGS: ContactSettings = {
   instagramUrl: 'https://instagram.com',
   googleReviewUrl: 'https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4',
   brandName: 'Premium Spa',
-  brandLogoUrl: 'https://placehold.co/300x180/F9F5EC/C5A059?text=LOGO',
+  brandLogoUrl: '/uploads/PremiumSpalogo.jpg',
   heroDesktopImageUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=1600&q=80',
   heroLaptopImageUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=1400&q=80',
   experienceHomeImageUrl: 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?auto=format&fit=crop&w=800&q=80',
@@ -92,17 +92,29 @@ function readCatalogCache(): { services?: SpaService[]; therapists?: Therapist[]
   }
 }
 
-let catalogPrefetch: Promise<[SpaService[], Therapist[], Record<string, string>]> | null = null;
+type CatalogResult = [SpaService[] | null, Therapist[] | null, Record<string, string> | null];
+let catalogPrefetch: Promise<CatalogResult> | null = null;
 
 function withCacheBust(path: string, cacheBust: boolean): string {
   return cacheBust ? `${path}${path.includes('?') ? '&' : '?'}_=${Date.now()}` : path;
 }
 
-function fetchCatalog(cacheBust = false): Promise<[SpaService[], Therapist[], Record<string, string>]> {
+async function fetchCatalogSection<T>(path: string): Promise<T | null> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await api<T>(path);
+    } catch {
+      if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 400));
+    }
+  }
+  return null;
+}
+
+function fetchCatalog(cacheBust = false): Promise<CatalogResult> {
   return Promise.all([
-    api<SpaService[]>(withCacheBust('/services', cacheBust)),
-    api<Therapist[]>(withCacheBust('/therapists', cacheBust)),
-    api<Record<string, string>>(withCacheBust('/settings', cacheBust)),
+    fetchCatalogSection<SpaService[]>(withCacheBust('/services', cacheBust)),
+    fetchCatalogSection<Therapist[]>(withCacheBust('/therapists', cacheBust)),
+    fetchCatalogSection<Record<string, string>>(withCacheBust('/settings', cacheBust)),
   ]);
 }
 
@@ -142,7 +154,7 @@ preloadCachedHeroAssets();
 const getInitialTab = (): MainTab => {
   if (typeof window !== 'undefined') {
     const path = window.location.pathname.toLowerCase();
-    if (path === '/admin' || path === '/admin/' || path.startsWith('/admin')) {
+    if (path === '/admin' || path.startsWith('/admin/') || window.location.hash === '#admin') {
       return 'admin';
     }
   }
@@ -213,10 +225,15 @@ export default function App() {
       if (!cacheBust) catalogPrefetch = null;
       if (!p) p = fetchCatalog(cacheBust);
       const [srv, th, settings] = await p;
-      setServices(srv);
-      setTherapists(th);
+      if (srv) setServices(srv);
+      if (th) setTherapists(th);
       try {
-        localStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify({ services: srv, therapists: th }));
+        const cached = readCatalogCache();
+        localStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify({
+          ...cached,
+          ...(srv ? { services: srv } : {}),
+          ...(th ? { therapists: th } : {}),
+        }));
       } catch {
         // ignore quota/security errors
       }
