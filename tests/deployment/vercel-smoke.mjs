@@ -25,75 +25,119 @@ try {
     cpSync(path.join(root, file), path.join(sandbox, file));
   }
   symlinkSync(path.join(root, 'node_modules'), path.join(sandbox, 'node_modules'), 'junction');
-  const result = spawnSync(process.execPath, ['--input-type=module', '-e', `
-    import assert from 'node:assert/strict';
-    import { createServer } from 'node:http';
-    import { register } from 'node:module';
-    // Production must boot even when the platform omits dev build tooling.
-    register(${JSON.stringify(buildToolBlocker)});
-    const { default: handler } = await import('./api/index.js');
-    const server = createServer((req, res) => {
-      Promise.resolve(handler(req, res)).catch((error) => {
-        console.error(error);
-        res.writeHead(500).end();
+  for (const appOrigin of ['https://example.invalid', '']) {
+    const result = spawnSync(process.execPath, ['--input-type=module', '-e', `
+      import assert from 'node:assert/strict';
+      import { createServer } from 'node:http';
+      import { register } from 'node:module';
+      // Production must boot even when the platform omits dev build tooling.
+      register(${JSON.stringify(buildToolBlocker)});
+      const { default: handler } = await import('./api/index.js');
+      const server = createServer((req, res) => {
+        Promise.resolve(handler(req, res)).catch((error) => {
+          console.error(error);
+          res.writeHead(500).end();
+        });
       });
+      await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+      const base = 'http://127.0.0.1:' + server.address().port;
+      try {
+        await Promise.all(Array.from({ length: 8 }, async () => {
+          const response = await fetch(base + '/api/health');
+          assert.equal(response.status, 200);
+          assert.equal(response.headers.get('cache-control'), 'no-store');
+          assert.equal((await response.json()).status, 'ok');
+        }));
+        const response = await fetch(base + '/api/auth/me');
+        assert.equal(response.status, 401);
+        assert.ok((await response.json()).error);
+        const missing = await fetch(base + '/api/nonexistent-smoke-test');
+        assert.equal(missing.status, 404);
+        assert.ok((await missing.json()).error);
+        const sameOriginPost = await fetch(base + '/api/auth/login', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', origin: 'https://premiumspa-main.vercel.app' },
+          body: '{}',
+        });
+        assert.equal(sameOriginPost.status, 400);
+        // Custom domains must work even when APP_ORIGIN is stale or absent and
+        // Vercel only supplies the project's vercel.app domain. An empty login
+        // reaches validation (400) without touching the database or credentials.
+        for (const origin of ['https://premiumspa.online', 'https://www.premiumspa.online']) {
+          const login = await fetch(base + '/api/auth/login', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', origin },
+            body: '{}',
+          });
+          assert.equal(login.status, 400, origin + ' must reach login validation');
+          assert.equal(login.headers.get('access-control-allow-origin'), null);
+          for (const [method, route, expectedStatus] of [
+            ['POST', '/api/services', 401],
+            ['PATCH', '/api/admin/settings', 401],
+            ['DELETE', '/api/admin/images/origin-smoke-test', 401],
+            ['PUT', '/api/admin/origin-smoke-test', 404],
+          ]) {
+            const write = await fetch(base + route, {
+              method,
+              headers: { 'content-type': 'application/json', origin },
+              body: '{}',
+            });
+            assert.equal(write.status, expectedStatus, origin + ' must pass the origin gate');
+          }
+        }
+        for (const origin of [
+          'https://premiumspa.online.evil.example',
+          'https://evil.premiumspa.online',
+          'http://premiumspa.online',
+          'https://premiumspa.online:8443',
+          'null',
+        ]) {
+          for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+            const blocked = await fetch(base + '/api/admin/origin-smoke-test', {
+              method,
+              headers: { 'content-type': 'application/json', origin },
+              body: '{}',
+            });
+            assert.equal(blocked.status, 403, origin + ' must remain blocked');
+          }
+        }
+        const evilOriginPost = await fetch(base + '/api/auth/login', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', origin: 'https://evil.example' },
+          body: '{}',
+        });
+        assert.equal(evilOriginPost.status, 403);
+        console.log('PASS: isolated Vercel bundle boots, concurrent health requests, auth guard, origin allowlist and JSON 404');
+      } finally {
+        server.closeAllConnections();
+        await new Promise(resolve => server.close(resolve));
+        await globalThis._postgresPool?.end();
+      }
+    `], {
+      cwd: sandbox,
+      encoding: 'utf8',
+      timeout: 30000,
+      env: {
+        ...process.env,
+        NODE_ENV: 'production',
+        VERCEL: '1',
+        DATABASE_URL: 'postgresql://test:test@127.0.0.1:1/test?sslmode=disable',
+        POSTGRES_URL: '',
+        JWT_SECRET: 'isolated-smoke-test-only-not-a-production-secret',
+        ADMIN_PIN: 'Isolated-Test-Only-123!',
+        APP_ORIGIN: appOrigin,
+        VERCEL_PROJECT_PRODUCTION_URL: 'premiumspa-main.vercel.app',
+        VERCEL_URL: '',
+        SUPABASE_URL: '',
+        SUPABASE_SERVICE_ROLE_KEY: '',
+        SUPABASE_ANON_KEY: '',
+      },
     });
-    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-    const base = 'http://127.0.0.1:' + server.address().port;
-    try {
-      await Promise.all(Array.from({ length: 8 }, async () => {
-        const response = await fetch(base + '/api/health');
-        assert.equal(response.status, 200);
-        assert.equal(response.headers.get('cache-control'), 'no-store');
-        assert.equal((await response.json()).status, 'ok');
-      }));
-      const response = await fetch(base + '/api/auth/me');
-      assert.equal(response.status, 401);
-      assert.ok((await response.json()).error);
-      const missing = await fetch(base + '/api/nonexistent-smoke-test');
-      assert.equal(missing.status, 404);
-      assert.ok((await missing.json()).error);
-      const sameOriginPost = await fetch(base + '/api/auth/login', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', origin: 'https://premiumspa-main.vercel.app' },
-        body: '{}',
-      });
-      assert.equal(sameOriginPost.status, 400);
-      const evilOriginPost = await fetch(base + '/api/auth/login', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', origin: 'https://evil.example' },
-        body: '{}',
-      });
-      assert.equal(evilOriginPost.status, 403);
-      console.log('PASS: isolated Vercel bundle boots, concurrent health requests, auth guard, origin allowlist and JSON 404');
-    } finally {
-      server.closeAllConnections();
-      await new Promise(resolve => server.close(resolve));
-      await globalThis._postgresPool?.end();
-    }
-  `], {
-    cwd: sandbox,
-    encoding: 'utf8',
-    timeout: 30000,
-    env: {
-      ...process.env,
-      NODE_ENV: 'production',
-      VERCEL: '1',
-      DATABASE_URL: 'postgresql://test:test@127.0.0.1:1/test?sslmode=disable',
-      POSTGRES_URL: '',
-      JWT_SECRET: 'isolated-smoke-test-only-not-a-production-secret',
-      ADMIN_PIN: 'Isolated-Test-Only-123!',
-      APP_ORIGIN: 'https://example.invalid',
-      VERCEL_PROJECT_PRODUCTION_URL: 'premiumspa-main.vercel.app',
-      SUPABASE_URL: '',
-      SUPABASE_SERVICE_ROLE_KEY: '',
-      SUPABASE_ANON_KEY: '',
-    },
-  });
-  process.stdout.write(result.stdout || '');
-  process.stderr.write(result.stderr || '');
-  if (result.error) throw result.error;
-  assert.equal(result.status, 0, 'Isolated Vercel function smoke test failed');
+    process.stdout.write(result.stdout || '');
+    process.stderr.write(result.stderr || '');
+    if (result.error) throw result.error;
+    assert.equal(result.status, 0, 'Isolated Vercel function smoke test failed');
+  }
 } finally {
   // Only remove the generated temp directory; unlink the dependency junction first.
   rmSync(path.join(sandbox, 'node_modules'), { force: true, recursive: true });

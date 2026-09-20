@@ -74,6 +74,9 @@ The database schema is created automatically on first boot (Drizzle migrations r
 - Framework preset: **Vite**; build command: `npm run build`; output: `dist`.
 - Set `DATABASE_URL`, `JWT_SECRET`, `ADMIN_PIN`, `APP_ORIGIN` (the site's exact
   HTTPS origin), and `TRUST_PROXY` for the hosting proxy in the project environment.
+- The official `https://premiumspa.online` and `https://www.premiumspa.online`
+  origins are allowed automatically, alongside Vercel's runtime URLs. Use
+  `APP_ORIGIN` to add other domains. Unknown origins remain blocked.
 - The API entrypoint imports `dist-server/vercel.mjs`, produced by the build and
   explicitly included by `vercel.json`. Do not import `server.ts` from that
   entrypoint: the deployed function must run without TypeScript source files.

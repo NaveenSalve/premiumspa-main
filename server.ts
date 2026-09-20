@@ -85,6 +85,10 @@ function normalizeAllowedOrigin(value: string): string | null {
 
 function getAllowedOrigins(): string[] {
   const values = [
+    // Official custom domains (also used by index.html and sitemap.xml).
+    // Vercel's runtime URLs may only contain the *.vercel.app deployment URL.
+    'https://premiumspa.online',
+    'https://www.premiumspa.online',
     ...(process.env.APP_ORIGIN || '').split(/[,\s]+/),
     process.env.VERCEL_PROJECT_PRODUCTION_URL || '',
     process.env.VERCEL_URL || '',
@@ -447,16 +451,15 @@ export async function createApp() {
 
   // ---- F-08: Strict Origin allowlist (production) ----
   // Browsers send an Origin header on every same-origin state-changing request.
-  // Any POST/PATCH/PUT/DELETE whose Origin is NOT on the configured APP_ORIGIN
+  // Any POST/PATCH/PUT/DELETE whose Origin is NOT on the exact origin
   // allowlist is rejected with 403 (no wildcards). Requests WITHOUT an Origin
   // header (server-to-server clients, curl, non-browser tooling) are allowed —
   // they carry no ambient browser credentials and cannot be CSRF'd. GET/HEAD/
   // OPTIONS pass through; the server never emits CORS headers, so cross-origin
   // JS can never read responses or attach cookies (SameSite=Lax remains the
-  // cookie-level control). Unset APP_ORIGIN in production = fail-closed: every
-  // browser state-changing request is rejected until an origin is configured.
-  // Vercel exposes its production/custom URL at runtime, so include it as an
-  // exact origin source in case APP_ORIGIN is missing from the project env.
+  // cookie-level control). The official custom domains and Vercel runtime URLs
+  // are included explicitly; APP_ORIGIN adds any other deployment origins.
+  // Unknown origins remain blocked even when APP_ORIGIN is missing.
   const allowedOrigins = getAllowedOrigins();
 
   app.use((req, res, next) => {

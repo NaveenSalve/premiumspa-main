@@ -30,7 +30,7 @@ notification-PII hygiene, weak-PIN rejection and database-failure handling.
 | Weak PIN | production startup refuses a 12<sup>-class</sup>-weak `ADMIN_PIN` with a generic error and never logs the PIN |
 | DB failure | graceful 5xx JSON, no internal leaks, process stays alive when the database is unreachable |
 | Races | 8 parallel bookings for one slot → exactly 1×200 + 7×409; logout racing 8 requests → no post-logout reuse |
-| F-08 Origin allowlist | same-origin POST allowed; foreign-origin → 403; `Origin: null` → 403; missing-Origin over HTTP → rejected; `APP_ORIGIN` comma-separated, unset in production → fail-closed |
+| F-08 Origin allowlist | configured-origin POST allowed; foreign-origin → 403; `Origin: null` → 403; missing-Origin server clients allowed; official custom domains and Vercel runtime URLs included automatically; `APP_ORIGIN` adds exact origins |
 | F-09 Role enforcement | forged `role:'user'` cookie → 403; forged `role:'admin'` → 200; missing role → 401 |
 | F-11 Pagination bounds | no `?limit=` → default 100; `limit=1000000` → capped at 1000; oversized `offset` bounded |
 | F-12 FK integrity | orphan `service_id`/`therapist_id` insert rejected by FK; valid insert OK (migration `0003`) |
