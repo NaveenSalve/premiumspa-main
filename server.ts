@@ -10,7 +10,7 @@ import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { db } from './src/db/index.ts';
-import { and, eq, ne, lt, desc, asc, sql } from 'drizzle-orm';
+import { and, eq, ne, lt, desc, asc, or, sql } from 'drizzle-orm';
 import {
   services,
   therapists,
@@ -84,14 +84,26 @@ function normalizeAllowedOrigin(value: string): string | null {
 }
 
 function getAllowedOrigins(): string[] {
+  const hostingOrigins = [
+    process.env.APP_ORIGIN || '',
+    process.env.SITE_URL || '',
+    process.env.PUBLIC_URL || '',
+    process.env.FRONTEND_URL || '',
+    process.env.URL || '',
+    process.env.DEPLOY_URL || '',
+    process.env.DEPLOY_PRIME_URL || '',
+    process.env.RENDER_EXTERNAL_URL || '',
+    process.env.RAILWAY_PUBLIC_DOMAIN || '',
+    process.env.VERCEL_PROJECT_PRODUCTION_URL || '',
+    process.env.VERCEL_URL || '',
+  ].flatMap((value) => String(value || '').split(/[,\s]+/));
+
   const values = [
     // Official custom domains (also used by index.html and sitemap.xml).
     // Vercel's runtime URLs may only contain the *.vercel.app deployment URL.
     'https://premiumspa.online',
     'https://www.premiumspa.online',
-    ...(process.env.APP_ORIGIN || '').split(/[,\s]+/),
-    process.env.VERCEL_PROJECT_PRODUCTION_URL || '',
-    process.env.VERCEL_URL || '',
+    ...hostingOrigins,
   ];
   return Array.from(new Set(values.map(normalizeAllowedOrigin).filter((value): value is string => Boolean(value))));
 }
@@ -1262,7 +1274,7 @@ export async function createApp() {
       const therapistId = typeof b.therapistId === 'string' && b.therapistId ? b.therapistId : null;
       const address = typeof (b.fullAddress || b.address) === 'string' ? (b.fullAddress || b.address).trim() : '';
       const locality = typeof (b.city || b.locality) === 'string' ? (b.city || b.locality).trim() : '';
-      const date = String(b.date || '').trim();
+      const rawDate = String(b.date || '').trim();
       const time = String(b.time || '').trim();
       const duration = String(b.duration || '1H').trim();
       const houseDetails = `${b.houseFlatNo || ''} ${b.floor || ''}`.trim() || null;
@@ -1279,14 +1291,14 @@ export async function createApp() {
       if (!address || !locality) {
         return res.status(400).json({ error: 'Please fill in your locality/area and street address.' });
       }
-      if (!date || !time) {
+      if (!rawDate || !time) {
         return res.status(400).json({ error: 'Date and time are required.' });
       }
       const parsedTime = parseTimeMinutes(time);
       if (parsedTime === null) {
         return res.status(400).json({ error: 'Please select a valid time slot.' });
       }
-      const canonicalDate = normalizeDate(date);
+      const canonicalDate = normalizeDate(rawDate);
       if (!canonicalDate) {
         return res.status(400).json({ error: 'Please select a valid date.' });
       }
@@ -1354,10 +1366,13 @@ export async function createApp() {
       // ---- Atomic write with duplicate-slot protection ----
       const result = await db.transaction(async (tx) => {
         if (therapistId) {
+          const datePredicate = rawDate !== canonicalDate
+            ? or(eq(bookings.date, canonicalDate), eq(bookings.date, rawDate))
+            : eq(bookings.date, canonicalDate);
           const clash = await tx.select({ id: bookings.id }).from(bookings).where(
             and(
               eq(bookings.therapistId, therapistId),
-              eq(bookings.date, date),
+              datePredicate,
               eq(bookings.time, time),
               ne(bookings.status, 'Cancelled')
             )
@@ -1377,7 +1392,7 @@ export async function createApp() {
           therapistId: therapistId || null,
           therapistName: therapist ? therapist.name : (b.therapistName || service.name),
           therapistTier: therapist ? (therapist.tier || therapist.category || 'Classic') : (b.therapistCategory || null),
-          date,
+          date: canonicalDate,
           time,
           duration,
           address,
@@ -1410,13 +1425,13 @@ export async function createApp() {
           phone: mobileKey,
           email: customerEmail,
           totalOrders: 1,
-          upcomingVisit: `${date}, ${time}`,
+          upcomingVisit: `${canonicalDate}, ${time}`,
           status: 'New',
         }).onConflictDoUpdate({
           target: [customers.phone],
           set: {
             totalOrders: sql`${customers.totalOrders} + 1`,
-            upcomingVisit: `${date}, ${time}`,
+            upcomingVisit: `${canonicalDate}, ${time}`,
             updatedAt: new Date(),
           },
         });
@@ -1426,7 +1441,7 @@ export async function createApp() {
           id: `notif-${crypto.randomUUID()}`,
           type: 'booking',
           title: 'New Booking Request',
-          message: `${customerName} booked ${service.name} for ${date} at ${time}`,
+          message: `${customerName} booked ${service.name} for ${canonicalDate} at ${time}`,
           time: 'Just now',
           read: false,
           relatedId: id,
@@ -1442,7 +1457,7 @@ export async function createApp() {
           therapistId: therapistId || undefined,
           therapistName: therapist ? therapist.name : undefined,
           therapistCategory: therapist ? (therapist.tier || 'Classic') : undefined,
-          date,
+          date: canonicalDate,
           time,
           duration,
           fullAddress: address,

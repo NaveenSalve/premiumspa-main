@@ -69,14 +69,29 @@ const slotToMinutes = (t: string): number => {
   return h * 60 + min;
 };
 
+type BookingDateOption = {
+  key: string;
+  label: string;
+};
+
 // Helper to generate next 7 days starting from today (Asia/Kolkata)
 const generateNext7Days = () => {
-  const dates: string[] = [];
+  const dates: BookingDateOption[] = [];
   const [y, m, d] = kolkataDateKey(new Date()).split('-').map(Number);
   for (let i = 0; i < 7; i++) {
-    dates.push(kolkataDateLabel(new Date(Date.UTC(y, m - 1, d + i, 12))));
+    const value = new Date(Date.UTC(y, m - 1, d + i, 12));
+    dates.push({
+      key: kolkataDateKey(value),
+      label: kolkataDateLabel(value),
+    });
   }
   return dates;
+};
+
+const bookingDateDisplay = (value: string): string => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return value;
+  return kolkataDateLabel(new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12)));
 };
 
 export const BookingView: React.FC<BookingViewProps> = ({
@@ -133,7 +148,7 @@ export const BookingView: React.FC<BookingViewProps> = ({
   }, [services, activeService]);
 
   // Date, Time & Duration state
-  const [date, setDate] = useState(NEXT_7_DAYS[0]);
+  const [date, setDate] = useState(NEXT_7_DAYS[0]?.key || kolkataDateKey(new Date()));
   const [time, setTime] = useState('01:00 PM');
   const [duration, setDuration] = useState<'60 Mins' | '90 Mins' | '120 Mins'>('60 Mins');
 
@@ -143,7 +158,7 @@ export const BookingView: React.FC<BookingViewProps> = ({
     const id = setInterval(() => setNowTick((n) => n + 1), 30000);
     return () => clearInterval(id);
   }, []);
-  const isToday = date === kolkataDateLabel(new Date());
+  const isToday = date === kolkataDateKey(new Date());
   const nowMinutes = kolkataNowMinutes();
   useEffect(() => {
     if (isToday && slotToMinutes(time) < nowMinutes) {
@@ -595,16 +610,16 @@ export const BookingView: React.FC<BookingViewProps> = ({
           <div className="flex items-center space-x-2 overflow-x-auto pb-1 no-scrollbar">
             {NEXT_7_DAYS.map((d) => (
               <button
-                key={d}
+                key={d.key}
                 type="button"
-                onClick={() => setDate(d)}
+                onClick={() => setDate(d.key)}
                 className={`px-3.5 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                  date === d
+                  date === d.key
                     ? 'bg-[#52634f] text-white shadow-xs border border-[#3b4b38]'
                     : 'bg-[#f0f4ee] border border-[#d5e8cf] text-[#3b4b38] hover:bg-[#d5e8cf]'
                 }`}
               >
-                {d}
+                {d.label}
               </button>
             ))}
           </div>
@@ -1003,7 +1018,7 @@ export const BookingView: React.FC<BookingViewProps> = ({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[#747871]">Date & Time:</span>
-                  <span className="font-semibold text-[#1b1c19]">{confirmedBooking.date}, {confirmedBooking.time}</span>
+                  <span className="font-semibold text-[#1b1c19]">{bookingDateDisplay(confirmedBooking.date)}, {confirmedBooking.time}</span>
                 </div>
                 <div className="flex justify-between text-[11px]">
                   <span className="text-[#747871]">Therapist Travel Fee:</span>

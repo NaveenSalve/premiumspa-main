@@ -1,3 +1,20 @@
+const formatBookingDate = (value: string): string => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!m) return value;
+  const date = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12));
+  try {
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).format(date);
+  } catch {
+    return value;
+  }
+};
+
 export const buildWhatsAppBookingUrl = (booking: {
   id: string;
   customerName: string;
@@ -33,7 +50,7 @@ export const buildWhatsAppBookingUrl = (booking: {
     `*Service:* ${booking.serviceName} (${booking.duration})`,
     `*Service Type:* ${booking.serviceLocation === 'hotel' ? 'Hotel Service' : 'Home Service'}`,
     `*Therapist:* ${booking.therapistName}`,
-    `*Date & Time:* ${booking.date}, ${booking.time}`,
+    `*Date & Time:* ${formatBookingDate(booking.date)}, ${booking.time}`,
     '',
     '*Customer Location*',
     booking.fullAddress ? `*Address:* ${booking.fullAddress}` : '',
