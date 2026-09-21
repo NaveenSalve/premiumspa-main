@@ -10,7 +10,7 @@ import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { db } from './src/db/index.ts';
-import { and, eq, ne, lt, desc, asc, or, sql } from 'drizzle-orm';
+import { and, eq, ne, lt, desc, asc, inArray, sql } from 'drizzle-orm';
 import {
   services,
   therapists,
@@ -229,6 +229,23 @@ const normalizeDate = (value: unknown): string | null => {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+};
+
+const legacyBusinessDateLabel = (dateKey: string): string | null => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+  if (!m) return null;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12));
+  const parts: Record<string, string> = {};
+  new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).formatToParts(d).forEach((p) => {
+    if (p.type !== 'literal') parts[p.type] = p.value;
+  });
+  return `${parts.weekday}, ${parts.day} ${parts.month} ${parts.year}`;
 };
 
 // ---- Business timezone (Asia/Kolkata) ----
@@ -1199,7 +1216,7 @@ export async function createApp() {
         therapistId: b.therapistId,
         therapistName: b.therapistName,
         therapistCategory: b.therapistTier || 'Classic',
-        date: b.date,
+        date: normalizeDate(b.date) || b.date,
         time: b.time,
         duration: b.duration,
         fullAddress: b.address,
@@ -1366,9 +1383,14 @@ export async function createApp() {
       // ---- Atomic write with duplicate-slot protection ----
       const result = await db.transaction(async (tx) => {
         if (therapistId) {
-          const datePredicate = rawDate !== canonicalDate
-            ? or(eq(bookings.date, canonicalDate), eq(bookings.date, rawDate))
-            : eq(bookings.date, canonicalDate);
+          const comparableDates = Array.from(new Set([
+            canonicalDate,
+            rawDate,
+            legacyBusinessDateLabel(canonicalDate),
+          ].filter((value): value is string => Boolean(value))));
+          const datePredicate = comparableDates.length === 1
+            ? eq(bookings.date, canonicalDate)
+            : inArray(bookings.date, comparableDates);
           const clash = await tx.select({ id: bookings.id }).from(bookings).where(
             and(
               eq(bookings.therapistId, therapistId),
